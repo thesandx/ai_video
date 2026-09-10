@@ -1,0 +1,220 @@
+name: Deploy to Cloud Run
+
+# Fires when code lands on main. `workflow_dispatch` allows a manual redeploy
+# of the current main without an empty commit.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Why are you deploying manually?
+        required: false
+        default: Manual redeploy
+
+# `id-token: write` is what makes keyless auth work: it lets the job mint a
+# short-lived GitHub OIDC token that Google exchanges for an access token.
+# There is no JSON service account key anywhere in this pipeline, and there
+# must never be one — a leaked key is a permanent credential, an OIDC token
+# expires in minutes and is scoped to this repository.
+permissions:
+  contents: read
+  id-token: write
+
+# Never run two deploys at once. `cancel-in-progress: false` lets an in-flight
+# deploy finish rather than leaving Cloud Run mid-rollout.
+concurrency:
+  group: deploy-cloud-run
+  cancel-in-progress: false
+
+env:
+  # ---------------------------------------------------------------------------
+  # Configure per project. Repository variables (Settings > Secrets and
+  # variables > Actions > Variables) override these defaults, so a fork can be
+  # retargeted without editing the workflow.
+  # ---------------------------------------------------------------------------
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION || 'asia-southeast1' }}
+  ARTIFACT_REPOSITORY: ${{ vars.ARTIFACT_REPOSITORY || 'containers' }}
+  SERVICE_NAME: ${{ vars.CLOUD_RUN_SERVICE || github.event.repository.name }}
+  NEXT_TELEMETRY_DISABLED: 1
+
+jobs:
+  deploy:
+    name: Build, push and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Attach a GitHub Environment to gate production behind required reviewers
+    # and to surface the deployed URL on the repository home page.
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Verify required configuration
+        # Fail fast with an actionable message instead of a confusing auth error
+        # 3 minutes into the build.
+        #
+        # Secrets are passed through `env:` rather than interpolated with
+        # ${{ }} directly into the script. Interpolation splices the value into
+        # the shell source before it runs, so any quote or metacharacter in a
+        # secret changes what executes. Reading them as environment variables
+        # keeps them as data. Same rule as in .github/instructions/github-workflows.md.
+        env:
+          WIF_PROVIDER: ${{ secrets.WIF_PROVIDER }}
+          WIF_SERVICE_ACCOUNT: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for var in GCP_PROJECT_ID WIF_PROVIDER WIF_SERVICE_ACCOUNT; do
+            if [ -z "${!var:-}" ]; then
+              case "$var" in
+                GCP_PROJECT_ID)
+                  echo "::error::Repository variable ${var} is not set. See cloud/deployment.md." ;;
+                *)
+                  echo "::error::Secret ${var} is not set. Run scripts/gcp-bootstrap.sh." ;;
+              esac
+              missing=1
+            fi
+          done
+          exit $missing
+
+      # -----------------------------------------------------------------------
+      # Keyless authentication via Workload Identity Federation.
+      #
+      # Flow: GitHub mints an OIDC JWT describing this workflow run -> the
+      # Workload Identity Pool provider validates issuer, audience and the
+      # attribute condition pinning it to this repository -> Google returns a
+      # federated token -> that token impersonates the deployer service account.
+      #
+      # Setup is automated in scripts/gcp-bootstrap.sh.
+      # -----------------------------------------------------------------------
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Resolve deploy metadata
+        id: meta
+        # UTC time of this deploy. /api/health renders it in IST so a deploy is
+        # visible without opening GitHub.
+        run: echo "deployed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve image tags
+        id: image
+        # Two tags per build:
+        #   :<sha>  immutable, what actually gets deployed and rolled back to
+        #   :latest a moving pointer for humans, never referenced by a revision
+        run: |
+          set -euo pipefail
+          REGISTRY="${GCP_REGION}-docker.pkg.dev"
+          BASE="${REGISTRY}/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/${SERVICE_NAME}"
+          echo "registry=${REGISTRY}" >> "$GITHUB_OUTPUT"
+          echo "sha_tag=${BASE}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=${BASE}:latest" >> "$GITHUB_OUTPUT"
+
+      - name: Configure Docker for Artifact Registry
+        # Uses the federated credentials from the auth step — no key file.
+        run: gcloud auth configure-docker ${{ steps.image.outputs.registry }} --quiet
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64 # Cloud Run gen2 runs amd64
+          tags: |
+            ${{ steps.image.outputs.sha_tag }}
+            ${{ steps.image.outputs.latest_tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false # keeps the Artifact Registry listing to one entry
+          build-args: |
+            NEXT_PUBLIC_APP_URL=${{ vars.APP_URL }}
+            NEXT_PUBLIC_APP_NAME=${{ vars.APP_NAME || 'Next.js on Cloud Run' }}
+            NEXT_PUBLIC_APP_VERSION=${{ github.sha }}
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.GCP_REGION }}
+          # Deploy the immutable SHA tag, never :latest. Deploying a moving tag
+          # makes it impossible to tell what a revision is actually running.
+          image: ${{ steps.image.outputs.sha_tag }}
+          env_vars: |-
+            NODE_ENV=production
+            LOG_LEVEL=${{ vars.LOG_LEVEL || 'info' }}
+            GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
+            GCP_REGION=${{ env.GCP_REGION }}
+            DEPLOYED_AT=${{ steps.meta.outputs.deployed_at }}
+          flags: >-
+            --allow-unauthenticated
+            --port=8080
+            --cpu=1
+            --memory=512Mi
+            --min-instances=${{ vars.MIN_INSTANCES || '0' }}
+            --max-instances=${{ vars.MAX_INSTANCES || '10' }}
+            --concurrency=80
+            --timeout=300
+            --execution-environment=gen2
+            --cpu-boost
+            --revision-suffix=${{ github.sha }}
+
+      - name: Verify the deployment serves traffic
+        # The deploy step succeeding only means Cloud Run accepted the revision.
+        # Hit the live URL to confirm it is actually healthy before declaring
+        # success — this is what turns a green tick into a real signal.
+        run: |
+          set -euo pipefail
+          URL="${{ steps.deploy.outputs.url }}"
+          echo "Probing ${URL}/api/health"
+
+          for attempt in $(seq 1 12); do
+            if curl -fsS --max-time 10 "${URL}/api/health" > /tmp/health.json; then
+              echo "Healthy on attempt ${attempt}:"
+              cat /tmp/health.json
+              exit 0
+            fi
+            echo "Attempt ${attempt} failed; retrying in 5s"
+            sleep 5
+          done
+
+          echo "::error::Deployed revision never became healthy at ${URL}/api/health"
+          gcloud run services describe "${SERVICE_NAME}" \
+            --region "${GCP_REGION}" \
+            --format='value(status.conditions)'
+          exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Cloud Run deployment"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Service | \`${SERVICE_NAME}\` |"
+            echo "| Region | \`${GCP_REGION}\` |"
+            echo "| Project | \`${GCP_PROJECT_ID}\` |"
+            echo "| Image | \`${{ steps.image.outputs.sha_tag }}\` |"
+            echo "| URL | ${{ steps.deploy.outputs.url }} |"
+            echo "| Commit | \`${GITHUB_SHA}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

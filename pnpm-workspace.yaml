@@ -1,0 +1,52 @@
+# -----------------------------------------------------------------------------
+# Lifecycle scripts
+#
+# pnpm >= 10 blocks lifecycle scripts of transitive dependencies by default.
+# Only the packages listed here are allowed to run their install scripts.
+#
+#   sharp         - native image codecs used by next/image optimisation
+#   unrs-resolver - native module resolver used by the ESLint import plugin
+#
+# Adding a dependency that needs a build step? Add it here explicitly and
+# explain why in the PR description. Never disable this safety net wholesale.
+# -----------------------------------------------------------------------------
+allowBuilds:
+  sharp: true
+  unrs-resolver: true
+
+# -----------------------------------------------------------------------------
+# Supply-chain: minimum release age
+#
+# Refuses to install any package version published less than this many minutes
+# ago (1440 = 24 hours). This is the single most effective defence against the
+# dominant npm attack pattern: a maintainer account is compromised, a malicious
+# version is published, and it is yanked within hours — but not before CI jobs
+# worldwide have installed it. Waiting a day means someone else finds it first.
+#
+# Set explicitly rather than inherited, so the value is reviewable and does not
+# change under you when pnpm changes its default.
+#
+# ⚠ Raising this is not free. The gate is evaluated at install time against
+#   every entry in the lockfile, including transitive ones you never chose. A
+#   window wider than the age of the youngest package in pnpm-lock.yaml breaks
+#   `pnpm install --frozen-lockfile` — which is CI and the Docker build. If you
+#   raise it, regenerate the lockfile and verify the container still builds.
+#
+# ⚠ This interacts with Dependabot. A bot PR raised the day a version ships
+#   would fail the gate and sit red through no fault of the change. The
+#   `cooldown` block in .github/dependabot.yml is set well above this window so
+#   bot PRs only ever propose versions that already clear it. Change one,
+#   change the other.
+# -----------------------------------------------------------------------------
+minimumReleaseAge: 1440
+
+# Versions exempted from the age gate above. pnpm appends to this list
+# automatically when you install a fresh package interactively.
+#
+# Treat every entry as a deliberate, temporary exception: it means "I chose to
+# install this before it had aged". Prune entries once the version is older
+# than minimumReleaseAge — they are then redundant, and a stale list quietly
+# widens the hole. Empty is the healthy steady state.
+minimumReleaseAgeExclude:
+  - "@testing-library/jest-dom@7.0.0"
+  - prettier@3.9.6

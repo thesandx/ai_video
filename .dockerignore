@@ -1,0 +1,43 @@
+# Everything excluded here stays out of the build context, which keeps builds
+# fast and — more importantly — prevents secrets and local state from being
+# baked into an image layer.
+
+# Dependencies and build output (reinstalled/rebuilt inside the image)
+node_modules
+.pnpm-store
+.next
+out
+build
+coverage
+*.tsbuildinfo
+
+# Secrets — never copy real env files into an image
+.env
+.env.*
+!.env.example
+
+# Version control and CI
+.git
+.gitignore
+.github
+.gitattributes
+
+# Docs and meta (not needed at runtime)
+docs
+cloud
+*.md
+!README.md
+LICENSE
+
+# Editor and OS noise
+.vscode
+.idea
+.DS_Store
+*.swp
+
+# Local tooling
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker-compose.*.yml
+scripts

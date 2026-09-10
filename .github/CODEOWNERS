@@ -1,0 +1,20 @@
+# Code owners are requested for review automatically on any PR touching the
+# matching paths. Combine with a branch protection rule requiring code owner
+# review to make this binding rather than advisory.
+#
+# Replace @thesandx with the real team handle (e.g. @org/platform-team) when
+# this template becomes a real project.
+
+# Default owner for everything.
+*                       @thesandx
+
+# Infrastructure and delivery: changes here can break every deploy, so they
+# deserve a dedicated reviewer even when the app diff looks trivial.
+/.github/workflows/     @thesandx
+/cloud/                 @thesandx
+/Dockerfile             @thesandx
+/docker-compose.yml     @thesandx
+/scripts/               @thesandx
+
+# Conventions that AI assistants and new joiners read as authoritative.
+/.github/instructions/  @thesandx

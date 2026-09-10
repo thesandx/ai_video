@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Deployment and Cloud Run questions
+    url: https://github.com/thesandx/nextjs-cloudrun-template/blob/main/cloud/deployment.md
+    about: Read the deployment runbook before opening an issue.
+  - name: Troubleshooting guide
+    url: https://github.com/thesandx/nextjs-cloudrun-template/blob/main/docs/troubleshooting.md
+    about: Common build, container and Cloud Run failures with fixes.

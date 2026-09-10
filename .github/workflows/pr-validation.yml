@@ -1,0 +1,131 @@
+name: PR Validation
+
+# Runs on every pull request into main, and on direct pushes to main as a
+# safety net. Nothing here touches Google Cloud, so the job needs no cloud
+# credentials at all — keep it that way.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege: the job only reads the repository.
+permissions:
+  contents: read
+
+# A new push to the same PR cancels the previous run. Saves minutes and stops
+# a stale run from reporting after a newer one.
+concurrency:
+  group: pr-validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: 1
+
+jobs:
+  validate:
+    name: Lint, build, typecheck and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          # Version comes from the `packageManager` field in package.json, so
+          # local, CI and Docker all agree without a second place to update.
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        # --frozen-lockfile fails if pnpm-lock.yaml disagrees with package.json,
+        # which catches a manually edited manifest before it reaches main.
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build
+        # Build runs BEFORE typecheck on purpose: `next build` generates
+        # next-env.d.ts and .next/types/**, which `tsc --noEmit` needs in order
+        # to resolve JSX and typed routes. Reversing the order breaks on a
+        # clean checkout.
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_APP_NAME: ${{ vars.APP_NAME || 'Next.js on Cloud Run' }}
+          NEXT_PUBLIC_APP_VERSION: ${{ github.sha }}
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Test
+        # No tests yet in a fresh project? Vitest exits 0 on an empty run via
+        # `passWithNoTests`, so this stays green until real tests land.
+        run: pnpm test --passWithNoTests
+
+  docker:
+    name: Docker image builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image
+        # Proves the production image still builds on every PR. Nothing is
+        # pushed — a broken Dockerfile should fail review, not deploy day.
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          load: true
+          tags: ${{ github.event.repository.name }}:pr-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_APP_VERSION=${{ github.sha }}
+
+      - name: Smoke test the container
+        # Boots the real image and waits for the health endpoint. Catches the
+        # classic failures a build alone cannot: wrong PORT, binding to
+        # localhost instead of 0.0.0.0, missing static assets, permission
+        # errors from running as a non-root user.
+        run: |
+          set -euo pipefail
+          IMAGE="${{ github.event.repository.name }}:pr-${{ github.sha }}"
+          docker run -d --name smoke -p 8080:8080 -e PORT=8080 "$IMAGE"
+
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/api/health > /dev/null; then
+              echo "Health check passed on attempt ${attempt}"
+              curl -fsS http://localhost:8080/api/health
+              docker rm -f smoke > /dev/null
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "::error::Container did not become healthy within 60s"
+          docker logs smoke
+          docker rm -f smoke > /dev/null
+          exit 1

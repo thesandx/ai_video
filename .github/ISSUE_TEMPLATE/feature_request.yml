@@ -1,0 +1,47 @@
+name: Feature request
+description: Propose a change or addition
+title: "[Feature]: "
+labels: [enhancement, triage]
+
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What is hard or impossible today? Describe the need, not the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Including "do nothing" — say why it is not enough.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Application (app/, components/)
+        - Build and tooling
+        - Docker
+        - CI/CD workflows
+        - Google Cloud infrastructure
+        - Documentation
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: dependencies
+    attributes:
+      label: Dependencies
+      options:
+        - label: This can be built without adding a new npm dependency

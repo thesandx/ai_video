@@ -1,0 +1,58 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.*
+.pnpm-store/
+
+# Next.js
+/.next/
+/out/
+/build
+next-env.d.ts
+
+# Testing
+/coverage
+
+# TypeScript
+*.tsbuildinfo
+
+# Environment — never commit real values. .env.example is the tracked contract.
+.env
+.env.*
+!.env.example
+
+# Google Cloud — service account keys must never reach the repository.
+# The deploy pipeline uses Workload Identity Federation and needs no key files.
+*.json.key
+gha-creds-*.json
+service-account*.json
+application_default_credentials.json
+.gcloudignore
+
+# Terraform (for when cloud/terraform/ lands — see cloud/terraform.md)
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.pem
+
+# Vercel (unused here — this template deploys to Cloud Run)
+.vercel

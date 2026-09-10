@@ -1,0 +1,60 @@
+# Local harness for the *production* image.
+#
+# This is not the development server — use `pnpm dev` for that. The value here
+# is running the exact artefact Cloud Run will run, so port binding, non-root
+# permissions, health checks and signal handling are verified before deploy.
+#
+#   docker compose up --build        start
+#   docker compose ps                see health status
+#   curl localhost:8080/api/health   probe it
+#   docker compose down              stop
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_APP_URL: http://localhost:8080
+        NEXT_PUBLIC_APP_NAME: Next.js on Cloud Run
+        NEXT_PUBLIC_APP_VERSION: local
+    image: nextjs-cloudrun-template:local
+    container_name: nextjs-cloudrun-template
+    ports:
+      # Cloud Run's default container port is 8080; mirror it locally.
+      - "8080:8080"
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      HOSTNAME: 0.0.0.0
+      LOG_LEVEL: info
+    env_file:
+      # Optional: create .env.local from .env.example for secrets.
+      # `required: false` keeps `docker compose up` working without it.
+      - path: .env.local
+        required: false
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+    # Mirror Cloud Run's default resource envelope so local behaviour matches.
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+    # Defence in depth: the app never writes to its own filesystem.
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true

@@ -1,0 +1,78 @@
+version: 2
+
+updates:
+  # ---------------------------------------------------------------------------
+  # Application dependencies
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Singapore
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    # Do not propose a version until it has been public for a few days.
+    #
+    # Two reasons, and the first is not optional:
+    #
+    #  1. pnpm enforces `minimumReleaseAge: 4320` (3 days) in
+    #     pnpm-workspace.yaml. A PR raised before that window elapses fails
+    #     `pnpm install --frozen-lockfile` in CI and sits red through no fault
+    #     of the change. Every value below is LONGER than 3 days so bot PRs
+    #     always clear the gate. If you change one, change the other.
+    #  2. Fresh releases are where broken publishes and compromised versions
+    #     live. Letting the ecosystem find them first is free.
+    cooldown:
+      default-days: 5
+      semver-patch-days: 5
+      semver-minor-days: 7
+      semver-major-days: 14
+    # Grouping keeps the PR queue reviewable: one PR for all patch bumps beats
+    # fifteen. Majors stay separate because they need real review.
+    groups:
+      next:
+        patterns: ["next", "eslint-config-next", "@next/*"]
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+      dev-dependencies:
+        dependency-type: development
+        update-types: [minor, patch]
+      production-patches:
+        dependency-type: production
+        update-types: [patch]
+    labels: [dependencies]
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+
+  # ---------------------------------------------------------------------------
+  # GitHub Actions — pinned action versions go stale silently and are a real
+  # supply-chain surface. Keep them current.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]
+    labels: [dependencies, ci]
+    commit-message:
+      prefix: "chore(ci)"
+
+  # ---------------------------------------------------------------------------
+  # Base image — a stale Node/Alpine base is the most common source of
+  # inherited CVEs in a container.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels: [dependencies, docker]
+    commit-message:
+      prefix: "chore(docker)"

@@ -1,0 +1,62 @@
+name: Bug report
+description: Something is broken
+title: "[Bug]: "
+labels: [bug, triage]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. The more precisely you can describe what you
+        expected versus what happened, the faster this gets fixed.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened
+      description: A clear description of the incorrect behaviour.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to '...'
+        2. Click '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Where did this happen?
+      options:
+        - Local development (pnpm dev)
+        - Local Docker container
+        - Cloud Run (production)
+        - CI / GitHub Actions
+    validations:
+      required: true
+
+  - type: input
+    id: revision
+    attributes:
+      label: Commit SHA or Cloud Run revision
+      description: The `version` field from `/api/health` identifies the running build.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Console output, or a Cloud Logging query result. Redact secrets.
+      render: shell
