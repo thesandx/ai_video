@@ -29,6 +29,28 @@ describe('the video model catalogue', () => {
   });
 });
 
+describe('the catalogue gates what can be requested', () => {
+  /**
+   * `isSupportedVideoModel` rejects anything absent from the catalogue, so a
+   * video capable model left out of it cannot be requested at all. That is how
+   * `google/gemini-3.6-flash` came to be refused while being perfectly capable.
+   * These cases pin the Flash line so the omission cannot come back silently.
+   */
+  it.each([
+    'google/gemini-3.5-flash',
+    'google/gemini-3.6-flash',
+    'google/gemini-3.7-flash',
+    'google/gemini-3.8-flash',
+    'google/gemini-2.5-flash',
+  ])('accepts %s, which reads both video and audio', (id) => {
+    expect(isSupportedVideoModel(id)).toBe(true);
+  });
+
+  it('resolves 3.6 Flash to itself rather than falling back', () => {
+    expect(resolveVideoModel('google/gemini-3.6-flash').id).toBe('google/gemini-3.6-flash');
+  });
+});
+
 describe('isSupportedVideoModel', () => {
   it('accepts a catalogued model', () => {
     expect(isSupportedVideoModel(DEFAULT_VIDEO_MODEL)).toBe(true);

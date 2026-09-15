@@ -47,7 +47,7 @@ function fail(message: string, status: number, hint?: string) {
 async function readRequest(
   request: Request,
 ): Promise<
-  | { ok: true; video: FetchedVideo; model?: string; angle?: string }
+  | { ok: true; video: FetchedVideo; model?: string; angle?: string; correction?: string }
   | { ok: false; response: Response }
 > {
   const contentType = request.headers.get('content-type') ?? '';
@@ -62,11 +62,13 @@ async function readRequest(
     const video = acceptUploadedVideo(bytes, file.type, file.name);
     const model = form.get('model');
     const angle = form.get('angle');
+    const correction = form.get('correction');
     return {
       ok: true,
       video,
       ...(typeof model === 'string' ? { model } : {}),
       ...(typeof angle === 'string' ? { angle } : {}),
+      ...(typeof correction === 'string' ? { correction } : {}),
     };
   }
 
@@ -92,11 +94,13 @@ async function readRequest(
 
   const model = (body as { model?: unknown }).model;
   const angle = (body as { angle?: unknown }).angle;
+  const correction = (body as { correction?: unknown }).correction;
   return {
     ok: true,
     video,
     ...(typeof model === 'string' ? { model } : {}),
     ...(typeof angle === 'string' ? { angle } : {}),
+    ...(typeof correction === 'string' ? { correction } : {}),
   };
 }
 
@@ -114,6 +118,7 @@ export async function POST(request: Request) {
     const analysis = await directReel(read.video, {
       model: read.model,
       angle: read.angle,
+      correction: read.correction,
     });
 
     logger.info('reel analysed', {

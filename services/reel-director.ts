@@ -127,6 +127,16 @@ export interface DirectOptions {
   model?: string | undefined;
   /** Steer the brief, for example "make it about filter coffee". */
   angle?: string | undefined;
+  /**
+   * A viewer's correction to an earlier reading.
+   *
+   * A model can misread an action, and the whole script then inherits the
+   * mistake: the structural formula is built on the misreading, so every beat
+   * built on the formula is wrong too. Without this input the only remedy is to
+   * run again and hope for a different result. A correction is stated to the
+   * model as ground truth that it must not contradict.
+   */
+  correction?: string | undefined;
 }
 
 /**
@@ -141,9 +151,17 @@ export async function directReel(
 ): Promise<ReelAnalysis> {
   const model = resolveVideoModel(options.model);
   const angle = options.angle?.trim() ?? '';
+  const correction = options.correction?.trim() ?? '';
 
-  const userPrompt =
-    angle === '' ? USER_PROMPT : `${USER_PROMPT}\n\nSteer the new concept this way: ${angle}`;
+  // The correction goes before the steer, because a wrong reading poisons
+  // everything built on top of it.
+  let userPrompt = USER_PROMPT;
+  if (correction !== '') {
+    userPrompt += `\n\nA viewer has watched this reel and corrected an earlier reading of it. Treat the following as ground truth about what happens on screen. Watch again with it in mind, and do not contradict it: ${correction}`;
+  }
+  if (angle !== '') {
+    userPrompt += `\n\nSteer the new concept this way: ${angle}`;
+  }
 
   const result = await completeWithVideo<DirectorReply>({
     model: model.id,

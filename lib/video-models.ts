@@ -10,6 +10,12 @@
  * exists so the UI has a curated, ordered default set with a reason attached to
  * each entry, rather than 79 rows of mostly-identical model ids.
  *
+ * The catalogue is also a gate: `isSupportedVideoModel` rejects anything absent
+ * from it, so a model left out here cannot be requested at all. Leaving one out
+ * is therefore a decision, not an oversight. When a caller asks for a video
+ * capable model that is missing, add it rather than telling them it is
+ * unsupported. Check with `listVideoModels()` before deciding.
+ *
  * Prices are USD per million prompt tokens, as reported by the models endpoint
  * at the time of writing. Treat them as indicative, not as a billing source.
  */
@@ -50,6 +56,20 @@ export const VIDEO_MODELS: readonly VideoModel[] = [
     id: 'google/gemini-3.8-flash',
     label: 'Gemini 3.8 Flash',
     note: 'Newest of the Flash line. Also reads audio, so it catches sound design.',
+    promptUsdPerMillion: 0.75,
+    contextTokens: 1_048_576,
+  },
+  {
+    id: 'google/gemini-3.7-flash',
+    label: 'Gemini 3.7 Flash',
+    note: 'Reads audio. Half the price of 3.5 Flash for the same context window.',
+    promptUsdPerMillion: 0.75,
+    contextTokens: 1_048_576,
+  },
+  {
+    id: 'google/gemini-3.6-flash',
+    label: 'Gemini 3.6 Flash',
+    note: 'Reads audio. Half the price of 3.5 Flash for the same context window.',
     promptUsdPerMillion: 0.75,
     contextTokens: 1_048_576,
   },
