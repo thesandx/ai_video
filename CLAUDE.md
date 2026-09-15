@@ -29,10 +29,28 @@ It exists because several things here look wrong but are correct. Several obviou
 
 A production Next.js application deployed to Google Cloud Run, generated from a template.
 
-The application is **Reel Director**. A reader pastes a reel link. The app downloads the video, sends
-it to a model that can watch video, and returns two things: a factual reading of how the source is
-built, and an original shooting script that applies the same craft to the reader's own idea. The two
-halves are deliberately separate, in the prompt, in the reply schema and in the types. See
+The application is **Reel Director**. It takes a reel in and produces a set of silent animated clips,
+through nine stages, each gated on the operator's approval:
+
+`source` to `analysis` to `refine` to `plan` to `sheets` to `stills` to `preflight` to `video` to `deliver`.
+
+Every asset stage offers the same two paths: generate it here, or run the prompt elsewhere and upload
+the file. Both are first class, because a missing asset blocks the run whichever way it was meant to
+arrive.
+
+Two things about the shape of this are load-bearing.
+
+**The run lives in the browser.** Cloud Run gives this app a read-only filesystem, no database and no
+bucket. localStorage holds the plan, IndexedDB holds the assets, and every route handler is
+stateless. See [ADR-0005](./docs/adr/0005-keep-the-run-in-the-browser.md).
+
+**Video is gated behind preflight.** A clip costs about a hundred times a chat turn, so
+`lib/preflight.ts` refuses the stage until every shot has a first frame and every character has a
+sheet. It is pure and it is the most tested code here. See
+[ADR-0006](./docs/adr/0006-gate-video-behind-preflight.md).
+
+The reading of the source and the script written from it stay deliberately separate, in the prompt,
+in the reply schema and in the types. See
 [ADR-0004](./docs/adr/0004-split-reading-the-source-from-writing-the-script.md).
 
 **Instagram refuses logged-out downloads.** This was verified against the live site, not assumed. So
@@ -254,7 +272,18 @@ React Testing Library cannot render them. Test the `services/`/`lib/` helpers th
 
 Free on **public** repositories only. On a private repo without GitHub Advanced Security the analysis runs, scans everything, then fails at upload with `Code scanning is not enabled for this repository`. If you generate a private project from this template: buy GHAS or delete `codeql.yml`. Do not leave a permanently red check — a check everyone ignores is worse than no check.
 
-### 12. `dumb-init` is PID 1
+### 12. The video API bills for requests it does not validate
+
+`POST /api/v1/videos` does **not** strictly validate its body. An unrecognised key is accepted and
+**starts a billable job**, so probing that endpoint with speculative fields costs money once per
+probe. Only strictly typed known fields, such as `frame_images`, fail with a 400 before billing.
+
+Its models are also absent from `/api/v1/models`, and no chat model declares `video` in
+`output_modalities`. Concluding from that listing that the platform cannot generate video is wrong:
+`/api/v1/videos/models` is the real catalogue. Change the request shape in
+`services/openrouter-video.ts` first, never by trial against the live endpoint.
+
+### 13. `dumb-init` is PID 1
 
 Without it, Node ignores `SIGTERM`. Cloud Run waits 10s, then sends `SIGKILL`, and drops in-flight requests on every deploy. Verified: the container currently stops in ~1s.
 
@@ -397,6 +426,8 @@ Recorded in [`docs/adr/`](./docs/adr/). Read before proposing a change to any of
 | [0002](./docs/adr/0002-use-workload-identity-federation.md)                 | Workload Identity Federation — no service account keys, ever                   |
 | [0003](./docs/adr/0003-resolve-reels-through-a-pluggable-strategy.md)       | Reel resolution is a strategy list, and the last one needs no credential       |
 | [0004](./docs/adr/0004-split-reading-the-source-from-writing-the-script.md) | Reading the source and writing the script are separated, and enforced by types |
+| [0005](./docs/adr/0005-keep-the-run-in-the-browser.md)                      | The run lives in localStorage and IndexedDB; the routes stay stateless         |
+| [0006](./docs/adr/0006-gate-video-behind-preflight.md)                      | Video generation is gated behind pure, tested preflight checks                 |
 
 Add an ADR when a decision is expensive to reverse, affects how everyone works, or rejects an obvious alternative. Never edit an accepted ADR to change its decision — write a new one that supersedes it, and link both ways.
 
