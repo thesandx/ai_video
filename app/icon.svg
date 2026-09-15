@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Reel Director">
+  <rect width="32" height="32" rx="8" fill="#181d26"/>
+  <rect x="6" y="9" width="20" height="14" rx="3" fill="#f5e9d4"/>
+  <circle cx="10.5" cy="12.5" r="1.4" fill="#181d26"/>
+  <circle cx="10.5" cy="19.5" r="1.4" fill="#181d26"/>
+  <circle cx="21.5" cy="12.5" r="1.4" fill="#181d26"/>
+  <circle cx="21.5" cy="19.5" r="1.4" fill="#181d26"/>
+  <path d="M14.4 12.6v6.8l5.4-3.4z" fill="#e39a0b"/>
+</svg>
