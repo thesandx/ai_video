@@ -21,6 +21,9 @@ type NodeEnv = 'development' | 'production' | 'test';
 
 const VALID_NODE_ENVS: readonly NodeEnv[] = ['development', 'production', 'test'];
 const VALID_LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
+const VALID_RUN_TRANSPORTS = ['local', 'neon'] as const;
+
+export type RunTransport = (typeof VALID_RUN_TRANSPORTS)[number];
 
 export type LogLevel = (typeof VALID_LOG_LEVELS)[number];
 
@@ -156,6 +159,33 @@ export const env = {
    * request body, so this bounds request size as well as memory.
    */
   maxVideoBytes: positiveInt('MAX_VIDEO_BYTES', process.env.MAX_VIDEO_BYTES, 40 * 1024 * 1024),
+
+  /**
+   * Where a run is stored.
+   *
+   * `local` keeps it in the browser and needs no database, so a fresh checkout
+   * works. `neon` stores it in Postgres, which survives a cleared browser and
+   * follows the operator between machines. See
+   * `docs/adr/0007-store-the-run-in-neon-behind-a-transport.md`.
+   *
+   * NEXT_PUBLIC_ because the browser picks the implementation. It names a
+   * strategy, never a credential.
+   */
+  runTransport: oneOf(
+    'NEXT_PUBLIC_RUN_TRANSPORT',
+    process.env.NEXT_PUBLIC_RUN_TRANSPORT,
+    VALID_RUN_TRANSPORTS,
+    'local',
+  ),
+
+  /**
+   * Neon Postgres connection string. Server-only, and required when the
+   * transport is `neon`.
+   *
+   * Use the POOLED endpoint. The unpooled one exists for `LISTEN`/`NOTIFY`,
+   * which does not work through Neon's pooler, and nothing here needs it.
+   */
+  databaseUrl: firstOf(process.env.DATABASE_URL),
 } as const;
 
 /**
@@ -169,6 +199,12 @@ export const env = {
  * check before the URL can exist. `appUrl` above falls back to a safe default,
  * and the deploy workflow inlines the real value on the next build.
  */
+
+if (env.runTransport === 'neon' && env.databaseUrl === '') {
+  issues.push(
+    'DATABASE_URL is required when NEXT_PUBLIC_RUN_TRANSPORT is "neon". Use the pooled Neon connection string.',
+  );
+}
 
 if (issues.length > 0) {
   throw new EnvValidationError(issues);

@@ -40,9 +40,12 @@ arrive.
 
 Two things about the shape of this are load-bearing.
 
-**The run lives in the browser.** Cloud Run gives this app a read-only filesystem, no database and no
-bucket. localStorage holds the plan, IndexedDB holds the assets, and every route handler is
-stateless. See [ADR-0005](./docs/adr/0005-keep-the-run-in-the-browser.md).
+**Where the run lives is a transport choice.** `NEXT_PUBLIC_RUN_TRANSPORT` picks between the
+browser (localStorage plus IndexedDB, the default, no database needed) and Neon Postgres. Two
+implementations satisfy one `RunStore` interface, and no component imports either directly, so
+switching is one environment variable and a rebuild. The pattern comes from the Playroom games
+repository. See [ADR-0005](./docs/adr/0005-keep-the-run-in-the-browser.md) and
+[ADR-0007](./docs/adr/0007-store-the-run-in-neon-behind-a-transport.md).
 
 **Video is gated behind preflight.** A clip costs about a hundred times a chat turn, so
 `lib/preflight.ts` refuses the stage until every shot has a first frame and every character has a
@@ -115,6 +118,7 @@ This file is the index and the warnings. The detail lives in `.github/instructio
 | [`SECURITY.md`](./SECURITY.md)                                                             | The security model and the pre-production hardening checklist. |
 | [`.claude/skills/kawaii-ui/SKILL.md`](./.claude/skills/kawaii-ui/SKILL.md)                 | Writing ANY user-facing UI. The design system, in full.        |
 | [`docs/video-models.md`](./docs/video-models.md)                                           | Choosing or changing the model that watches the video.         |
+| [`scripts/schema.sql`](./scripts/schema.sql)                                               | Working with the Neon schema, or migrating it explicitly.      |
 
 **Precedence when guidance conflicts** (later wins): your training defaults → general Next.js/GCP docs → `.github/instructions/` → this file → an explicit instruction from the human you are working with.
 
@@ -283,7 +287,21 @@ Its models are also absent from `/api/v1/models`, and no chat model declares `vi
 `/api/v1/videos/models` is the real catalogue. Change the request shape in
 `services/openrouter-video.ts` first, never by trial against the live endpoint.
 
-### 13. `dumb-init` is PID 1
+### 13. Neon needs the pooled endpoint, and scales to zero
+
+Use the **pooled** connection string, the one with `-pooler` in the host. The direct endpoint exists
+for `LISTEN`/`NOTIFY`, which does not work through Neon's pooler because it is PgBouncer in
+transaction mode. Nothing here needs it. A later feature that does must open the direct endpoint
+separately rather than switching this one.
+
+Neon also scales to zero, so the first query after an idle period pays a cold start of a few hundred
+milliseconds. Nothing queries the database merely to check liveness.
+
+The driver is `@neondatabase/serverless`, which talks over HTTP rather than holding a TCP pool. Cloud
+Run may start an instance per request, so a pooled TCP client would spend its life reconnecting and
+would exhaust Neon's connection limit under any concurrency.
+
+### 14. `dumb-init` is PID 1
 
 Without it, Node ignores `SIGTERM`. Cloud Run waits 10s, then sends `SIGKILL`, and drops in-flight requests on every deploy. Verified: the container currently stops in ~1s.
 
@@ -428,6 +446,7 @@ Recorded in [`docs/adr/`](./docs/adr/). Read before proposing a change to any of
 | [0004](./docs/adr/0004-split-reading-the-source-from-writing-the-script.md) | Reading the source and writing the script are separated, and enforced by types |
 | [0005](./docs/adr/0005-keep-the-run-in-the-browser.md)                      | The run lives in localStorage and IndexedDB; the routes stay stateless         |
 | [0006](./docs/adr/0006-gate-video-behind-preflight.md)                      | Video generation is gated behind pure, tested preflight checks                 |
+| [0007](./docs/adr/0007-store-the-run-in-neon-behind-a-transport.md)         | The run sits behind a RunStore transport: browser by default, Neon when set    |
 
 Add an ADR when a decision is expensive to reverse, affects how everyone works, or rejects an obvious alternative. Never edit an accepted ADR to change its decision — write a new one that supersedes it, and link both ways.
 

@@ -295,3 +295,65 @@ needs no credential and does not expire. The cookie only adds convenience.
 Treat the cookie as a credential. It authenticates as the account that created
 it. Use a throwaway account. Expect it to expire, and expect the app to report
 `424` with a plain message when it does.
+
+---
+
+## Run storage
+
+A run holds the plan, the chat, and every generated image and clip. Where it lives is a choice.
+
+| Variable                    | Values          | Default | Purpose                     |
+| --------------------------- | --------------- | ------- | --------------------------- |
+| `NEXT_PUBLIC_RUN_TRANSPORT` | `local`, `neon` | `local` | Selects the storage backend |
+| `DATABASE_URL`              | connection URI  | empty   | Neon Postgres. Server-only. |
+
+### Local, the default
+
+The browser holds the run: localStorage for the plan, IndexedDB for the images and clips. No database
+is needed, so a fresh checkout works with only an OpenRouter key.
+
+The cost is stated in the interface. A run is confined to one browser on one machine. Clearing site
+data loses it, along with every asset it holds.
+
+### Neon
+
+Set `NEXT_PUBLIC_RUN_TRANSPORT=neon` and supply `DATABASE_URL`. The app validates this pairing at
+startup and refuses to boot if the transport is `neon` with no URL, so a misconfiguration is a failed
+revision rather than a silent failure at the first save.
+
+Use the **pooled** connection string, the one with `-pooler` in the host name.
+
+```bash
+gcloud secrets create DATABASE_URL --replication-policy=automatic
+printf '%s' "$NEON_POOLED_URL" | gcloud secrets versions add DATABASE_URL --data-file=-
+
+gcloud secrets add-iam-policy-binding DATABASE_URL \
+  --member="serviceAccount:$RUNTIME_SA" \
+  --role="roles/secretmanager.secretAccessor"
+
+gcloud run services update "$SERVICE_NAME" --region "$GCP_REGION" \
+  --set-secrets=DATABASE_URL=DATABASE_URL:latest
+```
+
+Set the transport with a GitHub Actions repository variable named `RUN_TRANSPORT`. It is a build
+argument, not a runtime one, because `NEXT_PUBLIC_*` values are inlined at build time: changing it on
+the Cloud Run service does nothing until the image is rebuilt.
+
+### The schema
+
+Created automatically on first use. Every statement is idempotent, and the check is memoised per
+process. `scripts/schema.sql` carries the same DDL for an explicit migration:
+
+```bash
+psql "$DATABASE_URL" -f scripts/schema.sql
+```
+
+### Two Neon behaviours to design around
+
+**It scales to zero.** The first query after an idle period pays a cold start of a few hundred
+milliseconds. That is acceptable for a tool with an operator in front of it, and it is why nothing in
+this app queries the database merely to check liveness.
+
+**`LISTEN`/`NOTIFY` does not work through the pooled endpoint**, which is PgBouncer in transaction
+mode. Nothing here needs it. A later feature that does must open the direct, unpooled endpoint for
+the listener and keep using the pooled one for everything else.

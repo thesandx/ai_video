@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { TransportNotice } from '@/components/layout/TransportNotice';
 import { AssetGrid, type AssetSlot } from '@/components/studio/AssetGrid';
 import { ChatPanel } from '@/components/studio/ChatPanel';
 import { DeliverPanel } from '@/components/studio/DeliverPanel';
@@ -14,17 +15,11 @@ import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Card } from '@/components/ui/Card';
 import { useProject } from '@/hooks/useProject';
-import {
-  dataUrlToBlob,
-  deleteAsset,
-  getAsset,
-  getAssetDataUrl,
-  imageSize,
-  putAsset,
-} from '@/lib/asset-store';
+import { dataUrlToBlob } from '@/lib/asset-store';
 import { approve, revokeFrom, STAGE_BLURBS, STAGE_LABELS } from '@/lib/pipeline';
 import { preflight } from '@/lib/preflight';
 import { chooseDuration, findVideoGenModel } from '@/lib/video-gen-models';
+import { runStore } from '@/services/run-transport';
 import type { Asset, ChatTurn, ProductionPlan, StageId } from '@/types/pipeline';
 import type { ReelAnalysis } from '@/types/reel';
 
@@ -56,7 +51,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
  * stay testable.
  */
 export function StudioApp() {
-  const { project, ready, storageError, update, reset } = useProject();
+  const { project, ready, storageError, transport, update, reset } = useProject();
   const [busy, setBusy] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
@@ -89,10 +84,11 @@ export function StudioApp() {
         ...Object.values(project?.stills ?? {}),
         ...Object.values(project?.clips ?? {}),
       ];
+      const store = runStore();
+      const runId = project?.id ?? '';
       for (const asset of all) {
-        const blob = await getAsset(asset.blobKey);
-        if (blob === null) continue;
-        const url = URL.createObjectURL(blob);
+        const url = await store.getAssetObjectUrl(runId, asset).catch(() => null);
+        if (url === null) continue;
         created.push(url);
         next[asset.blobKey] = url;
       }
@@ -127,26 +123,15 @@ export function StudioApp() {
       origin: Asset['origin'],
       costUsd?: number,
     ) => {
-      const blobKey = `${bucket}:${key}:${Date.now()}`;
-      await putAsset(blobKey, blob);
-      const size = blob.type.startsWith('image/') ? await imageSize(blob) : null;
-      const asset: Asset = {
-        key,
-        origin,
-        mimeType: blob.type,
-        sizeBytes: blob.size,
-        blobKey,
-        createdAt: new Date().toISOString(),
-        ...(size === null ? {} : { width: size.width, height: size.height }),
-        ...(costUsd === undefined ? {} : { costUsd }),
-      };
+      const projectId = project?.id ?? '';
+      const asset = await runStore().putAsset(projectId, bucket, key, blob, origin, costUsd);
       update((current) => ({
         ...current,
         [bucket]: { ...current[bucket], [key]: asset },
         spendUsd: current.spendUsd + (costUsd ?? 0),
       }));
     },
-    [update],
+    [update, project?.id],
   );
 
   // ---- stage: source -------------------------------------------------------
@@ -305,13 +290,13 @@ export function StudioApp() {
           for (const character of plan.characters) {
             const sheet = project.sheets[character.id];
             if (sheet === undefined) continue;
-            const url = await getAssetDataUrl(sheet.blobKey);
+            const url = await runStore().getAssetDataUrl(project.id, sheet);
             if (url !== null) references.push(url);
           }
           if (shot.continuityFrom !== null) {
             const previous = project.stills[shot.continuityFrom];
             if (previous !== undefined) {
-              const url = await getAssetDataUrl(previous.blobKey);
+              const url = await runStore().getAssetDataUrl(project.id, previous);
               if (url !== null) references.push(url);
             }
           }
@@ -348,7 +333,11 @@ export function StudioApp() {
   const removeAsset = useCallback(
     async (bucket: 'sheets' | 'stills', key: string) => {
       const asset = project?.[bucket][key];
-      if (asset !== undefined) await deleteAsset(asset.blobKey).catch(() => undefined);
+      if (asset !== undefined) {
+        await runStore()
+          .deleteAsset(project?.id ?? '', asset)
+          .catch(() => undefined);
+      }
       update((current) => {
         const next = { ...current[bucket] };
         delete next[key];
@@ -377,7 +366,7 @@ export function StudioApp() {
       try {
         const still = project.stills[shot.id];
         if (still === undefined) throw new Error('No first frame.');
-        const firstFrame = await getAssetDataUrl(still.blobKey);
+        const firstFrame = await runStore().getAssetDataUrl(project.id, still);
         if (firstFrame === null) throw new Error('The first frame could not be read back.');
 
         const job = await postJson<{ id: string }>('/api/video', {
@@ -483,6 +472,8 @@ export function StudioApp() {
   return (
     <div className="flex flex-col gap-8">
       <StageRail project={project} onGo={(s) => update((c) => ({ ...c, stage: s }))} />
+
+      <TransportNotice transport={transport} />
 
       {storageError === null ? null : (
         <Card surface="coral">
