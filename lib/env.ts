@@ -40,6 +40,20 @@ function optional(value: string | undefined, fallback: string): string {
   return value === undefined || value.trim() === '' ? fallback : value;
 }
 
+/**
+ * Reads the first of several aliases that is set.
+ *
+ * `OPENROUTER_API_KEY` is the name OpenRouter's own docs use; `OPENROUTER_KEY`
+ * is what several hosted sandboxes inject. Accepting both means a key that is
+ * already in the environment works without being renamed first.
+ */
+function firstOf(...values: Array<string | undefined>): string {
+  for (const value of values) {
+    if (value !== undefined && value.trim() !== '') return value.trim();
+  }
+  return '';
+}
+
 function oneOf<T extends string>(
   name: string,
   value: string | undefined,
@@ -59,6 +73,16 @@ function port(name: string, value: string | undefined, fallback: number): number
   const parsed = Number.parseInt(value, 10);
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
     issues.push(`${name} must be an integer between 1 and 65535 but was "${value}"`);
+    return fallback;
+  }
+  return parsed;
+}
+
+function positiveInt(name: string, value: string | undefined, fallback: number): number {
+  if (value === undefined || value.trim() === '') return fallback;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    issues.push(`${name} must be a positive integer but was "${value}"`);
     return fallback;
   }
   return parsed;
@@ -103,6 +127,35 @@ export const env = {
    * visible without opening GitHub.
    */
   deployedAt: optional(process.env.DEPLOYED_AT, ''),
+
+  /**
+   * OpenRouter credential, used to send the reel to a video-capable model.
+   * Server-only: it must never gain a `NEXT_PUBLIC_` prefix, which would inline
+   * it into the browser bundle. Empty is allowed so the app still boots and can
+   * explain itself; `/api/analyze` reports the missing key as a 503.
+   */
+  openRouterKey: firstOf(process.env.OPENROUTER_API_KEY, process.env.OPENROUTER_KEY),
+
+  /** Default model id for the analysis. Overridable per request by the UI. */
+  openRouterModel: optional(process.env.OPENROUTER_MODEL, 'google/gemini-3.5-flash'),
+
+  /**
+   * Instagram `sessionid` cookie, optional.
+   *
+   * Instagram refuses logged-out reel downloads: the page renders a JS shell
+   * with no `og:video`, GraphQL answers 403, and the media API redirects. With
+   * this cookie the resolver can fetch a reel automatically; without it the
+   * reader supplies the file directly. Keep it in Secret Manager, never in the
+   * repository, and never behind `NEXT_PUBLIC_`.
+   */
+  instagramSessionCookie: firstOf(process.env.INSTAGRAM_SESSION_COOKIE),
+
+  /**
+   * Ceiling on the video the app will hold in memory and base64-encode.
+   * Base64 inflates by about a third, and the encoded string goes into a JSON
+   * request body, so this bounds request size as well as memory.
+   */
+  maxVideoBytes: positiveInt('MAX_VIDEO_BYTES', process.env.MAX_VIDEO_BYTES, 40 * 1024 * 1024),
 } as const;
 
 /**

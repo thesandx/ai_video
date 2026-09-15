@@ -1,10 +1,10 @@
 <div align="center">
 
-# Next.js → Cloud Run Template
+# Reel Director
 
-**A production-ready Next.js starter that deploys itself to Google Cloud Run.**
+**Study how a reel is built, then get an original shooting script for your own version.**
 
-Multi-stage Docker build · Keyless CI/CD via Workload Identity Federation · Strict TypeScript · Documented for humans and AI assistants
+Video-model analysis via OpenRouter · Playroom Kawaii design system · Deploys itself to Google Cloud Run
 
 [![PR Validation](https://github.com/thesandx/nextjs-cloudrun-template/actions/workflows/pr-validation.yml/badge.svg)](https://github.com/thesandx/nextjs-cloudrun-template/actions/workflows/pr-validation.yml)
 [![Deploy](https://github.com/thesandx/nextjs-cloudrun-template/actions/workflows/deploy.yml/badge.svg)](https://github.com/thesandx/nextjs-cloudrun-template/actions/workflows/deploy.yml)
@@ -17,7 +17,41 @@ Multi-stage Docker build · Keyless CI/CD via Workload Identity Federation · St
 
 ## Overview
 
-Most Next.js templates give you an application. This one also gives you **the path to production**. You get a container that runs on Cloud Run, a pipeline that deploys it without storing a single credential, and documentation that explains each decision.
+Paste a reel link. Reel Director downloads the video, sends it to a model that can watch video, and
+returns two things:
+
+1. **A reading of the source.** Shot by shot, with timecodes, framing, camera moves, and what the
+   hook does. This part is descriptive, and it should be accurate.
+2. **An original shooting script.** A new idea, shot in the same style, with your own voiceover,
+   on-screen text and caption. It borrows craft: shot grammar, cutting rhythm, structure. It does not
+   borrow words, captions or music.
+
+The split is enforced in the prompt, in the reply schema and in the types. See
+[ADR-0004](./docs/adr/0004-split-reading-the-source-from-writing-the-script.md).
+
+### Two things worth knowing before you start
+
+**Instagram refuses logged-out downloads.** This was verified against the live site: the reel page
+returns a JavaScript shell with no `og:video`, GraphQL answers `403`, and the media API redirects.
+`yt-dlp` fails the same way. So the app takes a direct MP4 link or an uploaded file as a first-class
+input, which needs no credential. An optional `INSTAGRAM_SESSION_COOKIE` adds automatic download. See
+[ADR-0003](./docs/adr/0003-resolve-reels-through-a-pluggable-strategy.md).
+
+**Not every model can see a video.** 79 of 445 models on OpenRouter declare video input. The reply
+reports `video_tokens`, which is the only reliable proof the frames were read.
+[`docs/video-models.md`](./docs/video-models.md) records what was measured, including two failure
+modes that are not in the documentation.
+
+### Getting started
+
+```bash
+pnpm install
+echo "OPENROUTER_API_KEY=sk-or-..." >> .env.local
+pnpm build && pnpm dev
+```
+
+It also gives you **the path to production**: a container that runs on Cloud Run, a pipeline that
+deploys it without storing a single credential, and documentation that explains each decision.
 
 The app itself is one page. That is the point — everything else is the reusable part.
 

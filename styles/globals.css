@@ -1,34 +1,73 @@
 @import 'tailwindcss';
 
 /**
- * Design tokens.
+ * Design tokens, Airtable Marketing Design System, "Playroom Kawaii" variant.
  *
- * Everything the app renders should reference a token, never a raw hex value.
- * Adding a colour? Add it here first, then use the generated Tailwind utility
- * (`--color-surface` becomes `bg-surface`, `text-surface`, ...).
+ * Ported from the Playroom application so the two products read as one family.
+ * Everything the app renders references a token, never a raw hex value.
+ * A `--color-x` token becomes the `bg-x` / `text-x` / `border-x` utilities.
+ *
+ * Two rules from the source system that are easy to break:
+ *   - Link blue is ONLY a text colour. The CTA fill is ink-1, near-black.
+ *   - The signature palette and pastels are whole-card surfaces, never small
+ *     accents, borders or icon tints.
  */
 @theme {
-  --color-background: #ffffff;
-  --color-foreground: #0a0a0a;
-  --color-muted: #6b7280;
-  --color-border: #e5e7eb;
-  --color-accent: #1a73e8;
+  /* ink */
+  --color-ink-1: #181d26;
+  --color-ink-2: #333840;
+  --color-ink-3: #41454d;
+  --color-ink-press: #0d1218;
 
-  --font-sans:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
-}
+  /* neutrals */
+  --color-white: #ffffff;
+  --color-neutral-50: #f8fafc;
+  --color-neutral-200: #e0e2e6;
+  --color-neutral-300: #dddddd;
+  --color-neutral-500: #9297a0;
+  --color-neutral-900: #1d1f25;
 
-/* The template ships with automatic dark mode. Swap to a class-based strategy
-   if the product needs a user-facing theme toggle. */
-@media (prefers-color-scheme: dark) {
-  @theme {
-    --color-background: #0a0a0a;
-    --color-foreground: #ededed;
-    --color-muted: #9ca3af;
-    --color-border: #262626;
-    --color-accent: #8ab4f8;
-  }
+  /* signature palette, whole-card surfaces only */
+  --color-coral: #aa2d00;
+  --color-forest: #0a2e0e;
+  --color-cream: #f5e9d4;
+  --color-peach: #fcab79;
+  --color-mint: #a8d8c4;
+  --color-yellow: #f4d35e;
+  --color-mustard: #d9a441;
+
+  /* semantic hues */
+  --color-blue-400: #458fff;
+  --color-blue-600: #1b61c9;
+  --color-blue-700: #254fad;
+  --color-blue-900: #1a3866;
+  --color-green-500: #39bf45;
+  --color-green-800: #006400;
+
+  /* semantic aliases */
+  --color-hairline: #dddddd;
+  --color-link: #1b61c9;
+  --color-link-active: #1a3866;
+  --color-success: #006400;
+
+  /* type. Huninn ships a single weight (400); 500 is browser-synthesised.
+     `--font-huninn` is set on <html> by next/font in app/layout.tsx. */
+  --font-display:
+    var(--font-huninn), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    sans-serif;
+  --font-text:
+    var(--font-huninn), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* radii, the kawaii variant overrides the base system's 12px/6px */
+  --radius-card: 20px;
+  --radius-pill: 999px;
+  --radius-input: 14px;
+  --radius-cell: 16px;
+
+  /* motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0.2, 1);
 }
 
 @layer base {
@@ -36,17 +75,25 @@
     -webkit-text-size-adjust: 100%;
   }
 
+  /**
+   * The design commits to a single light look: white canvas, dark ink type.
+   * The source system documents no dark palette, so the template's automatic
+   * dark mode was removed rather than invented. Add one deliberately, with
+   * tokens for every colour, if the product ever needs it.
+   */
   body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
-    font-family: var(--font-sans);
-    line-height: 1.6;
+    background-color: var(--color-white);
+    color: var(--color-ink-2);
+    font-family: var(--font-text);
+    font-size: 14px;
+    line-height: 1.25;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
   }
 
+  /* The system documents Default and Active/Pressed only: no hover states. */
   :focus-visible {
-    outline: 2px solid var(--color-accent);
+    outline: 2px solid var(--color-blue-400);
     outline-offset: 2px;
   }
 

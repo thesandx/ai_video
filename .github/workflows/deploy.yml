@@ -165,6 +165,13 @@ jobs:
             GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
             GCP_REGION=${{ env.GCP_REGION }}
             DEPLOYED_AT=${{ steps.meta.outputs.deployed_at }}
+            OPENROUTER_MODEL=${{ vars.OPENROUTER_MODEL || 'google/gemini-3.5-flash' }}
+            MAX_VIDEO_BYTES=${{ vars.MAX_VIDEO_BYTES || '41943040' }}
+          # OPENROUTER_API_KEY and INSTAGRAM_SESSION_COOKIE are credentials, so
+          # they are mounted from Secret Manager at runtime, never passed here
+          # and never passed as a build arg. cloud/environment-variables.md has
+          # the gcloud commands that create them and grant the runtime service
+          # account access. Add them to `--set-secrets` below once they exist.
           flags: >-
             --allow-unauthenticated
             --port=8080

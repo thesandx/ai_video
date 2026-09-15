@@ -12,7 +12,7 @@ It exists because several things here look wrong but are correct. Several obviou
 2. [Verified state](#verified-state)
 3. [Documentation map](#documentation-map)
 4. [Commands](#commands)
-5. [The twelve rules](#the-twelve-rules)
+5. [The thirteen rules](#the-thirteen-rules)
 6. [Where files go](#where-files-go)
 7. [Architecture in brief](#architecture-in-brief)
 8. [Traps — things that look wrong and are not](#traps--things-that-look-wrong-and-are-not)
@@ -27,7 +27,22 @@ It exists because several things here look wrong but are correct. Several obviou
 
 ## What this is
 
-A production Next.js application deployed to Google Cloud Run, generated from a template. If the app still contains only the Hello World page at `app/page.tsx`, it has not been customised yet.
+A production Next.js application deployed to Google Cloud Run, generated from a template.
+
+The application is **Reel Director**. A reader pastes a reel link. The app downloads the video, sends
+it to a model that can watch video, and returns two things: a factual reading of how the source is
+built, and an original shooting script that applies the same craft to the reader's own idea. The two
+halves are deliberately separate, in the prompt, in the reply schema and in the types. See
+[ADR-0004](./docs/adr/0004-split-reading-the-source-from-writing-the-script.md).
+
+**Instagram refuses logged-out downloads.** This was verified against the live site, not assumed. So
+reel resolution is a strategy list, and the last strategy, a direct video URL or an uploaded file,
+needs no credential and always works. See
+[ADR-0003](./docs/adr/0003-resolve-reels-through-a-pluggable-strategy.md).
+
+The user interface follows the **Playroom Kawaii** design system, ported from the Playroom games
+repository. [`.claude/skills/kawaii-ui/SKILL.md`](./.claude/skills/kawaii-ui/SKILL.md) is the rulebook
+for anything a reader sees.
 
 The template's purpose is that **the path to production already works**: a container that runs on Cloud Run, a pipeline that deploys it without storing any credential, and documentation that explains each decision. The application is deliberately trivial. Everything else is the reusable part — do not degrade it.
 
@@ -80,6 +95,8 @@ This file is the index and the warnings. The detail lives in `.github/instructio
 | [`cloud/github-actions.md`](./cloud/github-actions.md)                                     | Debugging OIDC / Workload Identity Federation.                 |
 | [`cloud/environment-variables.md`](./cloud/environment-variables.md)                       | Adding or changing configuration.                              |
 | [`SECURITY.md`](./SECURITY.md)                                                             | The security model and the pre-production hardening checklist. |
+| [`.claude/skills/kawaii-ui/SKILL.md`](./.claude/skills/kawaii-ui/SKILL.md)                 | Writing ANY user-facing UI. The design system, in full.        |
+| [`docs/video-models.md`](./docs/video-models.md)                                           | Choosing or changing the model that watches the video.         |
 
 **Precedence when guidance conflicts** (later wins): your training defaults → general Next.js/GCP docs → `.github/instructions/` → this file → an explicit instruction from the human you are working with.
 
@@ -101,7 +118,7 @@ docker compose up --build   # run the real production image locally
 
 ---
 
-## The twelve rules
+## The thirteen rules
 
 Full reasoning in [`coding-rules.md`](./.github/instructions/coding-rules.md).
 
@@ -116,7 +133,8 @@ Full reasoning in [`coding-rules.md`](./.github/instructions/coding-rules.md).
 9. **Update docs when architecture or behaviour changes** — same PR, not later.
 10. **Verify before claiming.** See [Verification protocol](#verification-protocol).
 11. **Design mobile-first.** Every UI works on a small screen first, then scales up. Unprefixed Tailwind utilities are the phone layout; add `sm:`/`md:`/`lg:` to enhance for wider screens — never the reverse. No fixed widths that overflow a phone, no horizontal scroll on the body, touch targets ≥44px. Responsiveness is a requirement, not a finishing touch.
-12. **Write docs in Simplified Technical English (ASD-STE100).** Every Markdown document — this file, `.github/instructions/`, `docs/`, `cloud/`, ADRs, READMEs — follows the standard. Short sentences (≤20 words for an instruction, ≤25 for a description), one instruction per sentence, active voice, present tense, one topic per paragraph, and one approved term per concept. Write for a non-native reader; choose the plain word over the clever one. Bring a document into compliance when you touch it.
+12. **Follow the design system.** [`.claude/skills/kawaii-ui/SKILL.md`](./.claude/skills/kawaii-ui/SKILL.md) is the rulebook for anything a reader sees: tokens instead of raw hex, `ink-1` for the CTA fill and never the link blue, signature colours as whole-card surfaces, display type at 400/500, 2px ink borders, no shadows, no hover styling, no emoji. Reuse `components/ui/` before you build a new primitive.
+13. **Write docs in Simplified Technical English (ASD-STE100).** Every Markdown document — this file, `.github/instructions/`, `docs/`, `cloud/`, ADRs, READMEs — follows the standard. Short sentences (≤20 words for an instruction, ≤25 for a description), one instruction per sentence, active voice, present tense, one topic per paragraph, and one approved term per concept. Write for a non-native reader; choose the plain word over the clever one. Bring a document into compliance when you touch it.
 
 ---
 
@@ -373,10 +391,12 @@ Full model in [`SECURITY.md`](./SECURITY.md).
 
 Recorded in [`docs/adr/`](./docs/adr/). Read before proposing a change to any of them.
 
-| ADR                                                         | Decision                                                     |
-| ----------------------------------------------------------- | ------------------------------------------------------------ |
-| [0001](./docs/adr/0001-use-cloud-run-for-hosting.md)        | Cloud Run for hosting — over Vercel, GKE, App Engine, a VM   |
-| [0002](./docs/adr/0002-use-workload-identity-federation.md) | Workload Identity Federation — no service account keys, ever |
+| ADR                                                                         | Decision                                                                       |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| [0001](./docs/adr/0001-use-cloud-run-for-hosting.md)                        | Cloud Run for hosting — over Vercel, GKE, App Engine, a VM                     |
+| [0002](./docs/adr/0002-use-workload-identity-federation.md)                 | Workload Identity Federation — no service account keys, ever                   |
+| [0003](./docs/adr/0003-resolve-reels-through-a-pluggable-strategy.md)       | Reel resolution is a strategy list, and the last one needs no credential       |
+| [0004](./docs/adr/0004-split-reading-the-source-from-writing-the-script.md) | Reading the source and writing the script are separated, and enforced by types |
 
 Add an ADR when a decision is expensive to reverse, affects how everyone works, or rejects an obvious alternative. Never edit an accepted ADR to change its decision — write a new one that supersedes it, and link both ways.
 

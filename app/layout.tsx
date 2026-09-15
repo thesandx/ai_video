@@ -1,8 +1,24 @@
 import '@/styles/globals.css';
 
 import type { Metadata, Viewport } from 'next';
+import { Huninn } from 'next/font/google';
 
 import { env } from '@/lib/env';
+
+/**
+ * The display and text face for the whole design system.
+ *
+ * Huninn ships a single weight (400). Every 500 in the UI is synthesised by the
+ * browser, which is the source design system's documented behaviour and not a
+ * defect to fix. `next/font` has no metrics override for this family, so every
+ * build logs `Failed to find font override values`. That warning is expected.
+ */
+const huninn = Huninn({
+  subsets: ['latin'],
+  weight: '400',
+  variable: '--font-huninn',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(env.appUrl),
@@ -10,7 +26,8 @@ export const metadata: Metadata = {
     default: env.appName,
     template: `%s | ${env.appName}`,
   },
-  description: 'Production-ready Next.js App Router template deployed on Google Cloud Run.',
+  description:
+    'Study how a reel is built, then get an original shooting script that applies the same craft to your own idea.',
   robots: {
     // Deployed previews should not be indexed. Flip this on for the real site.
     index: env.isProduction,
@@ -21,10 +38,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
-  ],
+  // The design commits to a single light look, so there is one theme colour.
+  themeColor: '#ffffff',
 };
 
 /**
@@ -40,7 +55,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={huninn.variable} suppressHydrationWarning>
       <body className="min-h-dvh antialiased">{children}</body>
     </html>
   );

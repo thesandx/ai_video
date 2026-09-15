@@ -223,3 +223,75 @@ Cloud Run sets these; do not define them yourself.
 | `--build-arg DATABASE_URL=...`          | Visible in `docker history`        | Secret Manager at runtime                 |
 | Changing `NEXT_PUBLIC_*` on the service | Silently has no effect             | Rebuild the image                         |
 | A secret with no owner or rotation plan | Nobody dares to change it later    | Document owner and rotation in the PR     |
+
+---
+
+## Reel Director variables
+
+The application adds four variables. Two are plain configuration. Two are
+credentials, and they follow a different path.
+
+### Configuration, set by the deploy workflow
+
+| Variable           | Default                   | Purpose                                   |
+| ------------------ | ------------------------- | ----------------------------------------- |
+| `OPENROUTER_MODEL` | `google/gemini-3.5-flash` | Default model that watches the video      |
+| `MAX_VIDEO_BYTES`  | `41943040` (40 MB)        | Largest video the app accepts and encodes |
+
+Change either with a GitHub Actions repository variable of the same name. The
+workflow reads `vars.OPENROUTER_MODEL` and `vars.MAX_VIDEO_BYTES`.
+
+A model must accept video input. Check `architecture.input_modalities` on
+`https://openrouter.ai/api/v1/models`. A model without `video` in that list
+causes OpenRouter to reject the request.
+
+### Credentials, set in Secret Manager
+
+Never put these in `env_vars`, in a build argument, or in the repository. A
+build argument is visible in `docker history`, and `NEXT_PUBLIC_` sends the
+value to every browser.
+
+| Secret                     | Required | Purpose                                    |
+| -------------------------- | -------- | ------------------------------------------ |
+| `OPENROUTER_API_KEY`       | Yes      | Authenticates the call to OpenRouter       |
+| `INSTAGRAM_SESSION_COOKIE` | No       | Lets the app download a reel automatically |
+
+Create the OpenRouter key:
+
+```bash
+gcloud secrets create OPENROUTER_API_KEY --replication-policy=automatic
+printf '%s' "$YOUR_KEY" | gcloud secrets versions add OPENROUTER_API_KEY --data-file=-
+```
+
+Grant the runtime service account read access:
+
+```bash
+gcloud secrets add-iam-policy-binding OPENROUTER_API_KEY \
+  --member="serviceAccount:$RUNTIME_SA" \
+  --role="roles/secretmanager.secretAccessor"
+```
+
+Mount it on the service:
+
+```bash
+gcloud run services update "$SERVICE_NAME" --region "$GCP_REGION" \
+  --set-secrets=OPENROUTER_API_KEY=OPENROUTER_API_KEY:latest
+```
+
+Repeat all three steps for `INSTAGRAM_SESSION_COOKIE` if you want automatic
+downloads. Add both to the `--set-secrets` flag in `.github/workflows/deploy.yml`
+once they exist, so a later deploy does not drop them.
+
+### Why the Instagram cookie is optional
+
+Instagram refuses logged-out reel downloads. This was verified against the live
+site. The reel page returns a JavaScript shell with no `og:video` tag. The
+GraphQL endpoint answers `403`. The media API redirects to a login page. The
+`yt-dlp` extractor fails the same way and says to supply cookies.
+
+So the application accepts a direct video URL as a first-class input. That path
+needs no credential and does not expire. The cookie only adds convenience.
+
+Treat the cookie as a credential. It authenticates as the account that created
+it. Use a throwaway account. Expect it to expire, and expect the app to report
+`424` with a plain message when it does.
