@@ -7,7 +7,12 @@ import type { ProductionPlan } from '@/types/pipeline';
 
 export interface ShotTableProps {
   plan: ProductionPlan;
-  onRemoveShot: (shotId: string) => void;
+  /**
+   * Omitted where the plan is shown for reading rather than editing. Without it
+   * the actions column is dropped, so the table never offers a control that
+   * does nothing.
+   */
+  onRemoveShot?: (shotId: string) => void;
 }
 
 /**
@@ -18,6 +23,8 @@ export interface ShotTableProps {
  * so the page body never scrolls sideways.
  */
 export function ShotTable({ plan, onRemoveShot }: ShotTableProps) {
+  const canRemove = onRemoveShot !== undefined;
+
   return (
     <Card surface="peach" eyebrow="The shot list">
       <h2 className="font-display text-ink-1 mb-1 text-[26px] font-normal text-balance">
@@ -25,8 +32,8 @@ export function ShotTable({ plan, onRemoveShot }: ShotTableProps) {
         seconds
       </h2>
       <p className="text-ink-2 mb-4 max-w-[65ch] text-sm">
-        Each shot needs its own first frame before video can run. Removing one here removes that
-        requirement with it.
+        Each shot needs its own first frame before video can run.
+        {canRemove ? ' Removing one here removes that requirement with it.' : ''}
       </p>
 
       <div className="overflow-x-auto">
@@ -51,9 +58,11 @@ export function ShotTable({ plan, onRemoveShot }: ShotTableProps) {
               <th scope="col" className="text-ink-1 py-2 pr-4 text-sm font-medium">
                 The beat
               </th>
-              <th scope="col" className="text-ink-1 py-2 text-sm font-medium">
-                <span className="sr-only">Actions</span>
-              </th>
+              {canRemove ? (
+                <th scope="col" className="text-ink-1 py-2 text-sm font-medium">
+                  <span className="sr-only">Actions</span>
+                </th>
+              ) : null}
             </tr>
           </thead>
           <tbody>
@@ -70,11 +79,13 @@ export function ShotTable({ plan, onRemoveShot }: ShotTableProps) {
                 </td>
                 <td className="text-ink-2 py-3 pr-4 text-sm">{shot.cameraSetup}</td>
                 <td className="text-ink-2 py-3 pr-4 text-sm">{shot.beat}</td>
-                <td className="py-3">
-                  <Button size="sm" variant="secondary" onClick={() => onRemoveShot(shot.id)}>
-                    Remove
-                  </Button>
-                </td>
+                {onRemoveShot === undefined ? null : (
+                  <td className="py-3">
+                    <Button size="sm" variant="secondary" onClick={() => onRemoveShot(shot.id)}>
+                      Remove
+                    </Button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

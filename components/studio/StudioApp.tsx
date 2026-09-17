@@ -6,6 +6,7 @@ import { TransportNotice } from '@/components/layout/TransportNotice';
 import { AssetGrid, type AssetSlot } from '@/components/studio/AssetGrid';
 import { ChatPanel } from '@/components/studio/ChatPanel';
 import { DeliverPanel } from '@/components/studio/DeliverPanel';
+import { PlanSummary } from '@/components/studio/PlanSummary';
 import { PreflightPanel } from '@/components/studio/PreflightPanel';
 import { ShotTable } from '@/components/studio/ShotTable';
 import { SourcePanel } from '@/components/studio/SourcePanel';
@@ -529,15 +530,19 @@ export function StudioApp() {
               </Button>
             </Card>
           ) : (
-            <ChatPanel
-              turns={project.chat}
-              busy={busy === 'chat'}
-              error={null}
-              pendingPatch={pendingPatch}
-              onSend={(m) => void sendChat(m)}
-              onApplyPatch={applyPatch}
-              onDiscardPatch={() => setPendingPatch(null)}
-            />
+            <>
+              <PlanSummary plan={plan} />
+              <ShotTable plan={plan} />
+              <ChatPanel
+                turns={project.chat}
+                busy={busy === 'chat'}
+                error={null}
+                pendingPatch={pendingPatch}
+                onSend={(m) => void sendChat(m)}
+                onApplyPatch={applyPatch}
+                onDiscardPatch={() => setPendingPatch(null)}
+              />
+            </>
           )}
           {plan === undefined ? null : (
             <Button onClick={() => update((c) => approve(c, 'refine'))} block>
