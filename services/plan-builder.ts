@@ -1,6 +1,6 @@
 import { env } from '@/lib/env';
 import { OpenRouterError } from '@/services/openrouter';
-import type { ProductionPlan } from '@/types/pipeline';
+import type { ProductionPlan, ShotSpec } from '@/types/pipeline';
 import type { CreativeBrief, ReelReading, ReelScript } from '@/types/reel';
 
 /**
@@ -40,9 +40,12 @@ WRITING. No em dashes or en dashes. No emoji. Sentence case.
 
 Return JSON only, matching the schema.`;
 
-const str = { type: 'string' } as const;
-const num = { type: 'number' } as const;
-
+/**
+ * A JSON Schema object where every declared property is required.
+ *
+ * Structured outputs with `strict: true` refuse a schema that leaves a
+ * property optional, so the required list is the property list.
+ */
 function object(properties: Record<string, unknown>): Record<string, unknown> {
   return {
     type: 'object',
@@ -52,31 +55,99 @@ function object(properties: Record<string, unknown>): Record<string, unknown> {
   };
 }
 
+/**
+ * A described field.
+ *
+ * The description is not decoration. A bare `{ type: 'string' }` tells a model
+ * the shape and nothing about the content, and a model asked for a required
+ * string it cannot interpret will fill it with the field name: the `beat`
+ * column once read "beatNumber" for every shot. Every field below says what
+ * belongs in it, in the words the planner should act on.
+ */
+function str(description: string): Record<string, unknown> {
+  return { type: 'string', description };
+}
+
+function num(description: string): Record<string, unknown> {
+  return { type: 'number', description };
+}
+
 const SCHEMA = object({
-  title: str,
-  aspectRatio: str,
-  targetDurationSeconds: num,
-  styleBible: str,
-  negativePrompt: str,
+  title: str('Title of the new reel, in sentence case.'),
+  aspectRatio: str('Aspect ratio as width colon height. Always "9:16".'),
+  targetDurationSeconds: num('Length of the finished reel in seconds.'),
+  styleBible: str(
+    'One paragraph naming the visual style every shot inherits: rendering, lighting, palette, texture. Say "stylised 3D animation", never a studio name.',
+  ),
+  negativePrompt: str('Comma separated list of what no image may contain.'),
   characters: {
     type: 'array',
-    items: object({ id: str, name: str, bible: str, sheetPrompt: str }),
+    description: 'Every character that appears. All original.',
+    items: object({
+      id: str('Lower case slug used as the asset key, for example "maya".'),
+      name: str('The name the character is called by.'),
+      bible: str(
+        'The dense one paragraph description with hex values. Pasted verbatim into every later prompt, so it must stand alone.',
+      ),
+      sheetPrompt: str('Prompt that generates this character reference sheet.'),
+    }),
   },
   shots: {
     type: 'array',
+    description: 'One shot per beat, in playing order.',
     items: object({
-      id: str,
-      index: num,
-      startSeconds: num,
-      endSeconds: num,
-      generateSeconds: num,
-      cameraSetup: str,
-      beat: str,
-      stillPrompt: str,
-      videoPrompt: str,
+      id: str('Shot id in the form "S1", "S2", "S3", numbered from 1 in order.'),
+      index: num('Position in the sequence, starting at 1.'),
+      startSeconds: num('Timecode in the finished reel where this shot starts.'),
+      endSeconds: num('Timecode in the finished reel where this shot ends.'),
+      generateSeconds: num(
+        'How many seconds of video to generate for this shot. A LENGTH, never a timecode: take endSeconds minus startSeconds, then add one or two seconds of tail to trim. A four second cut generates five or six seconds.',
+      ),
+      cameraSetup: str(
+        'The camera for this shot: shot size, angle and height. Must differ from the shot before it.',
+      ),
+      beat: str(
+        'What happens in this shot, as one plain sentence of action naming who does what. For example: "Maya leans over the puddle and sees the reflection blink back." Never a number, a label, or a placeholder.',
+      ),
+      stillPrompt: str(
+        'Prompt for the opening frame. Describes the opening state of the action, not its peak.',
+      ),
+      videoPrompt: str(
+        'Motion only, with exactly one camera move. Ends with the no audio, no mouth movement instruction.',
+      ),
     }),
   },
 });
+
+/** Most tail a shot may generate beyond its cut, in seconds. */
+const MAX_TAIL_SECONDS = 2;
+
+/**
+ * Fills in what the planner is not asked for, and repairs what it gets wrong.
+ *
+ * `continuityFrom` is structural rather than creative, so it is derived here
+ * and cannot come back pointing at a shot that does not exist.
+ *
+ * `generateSeconds` is repaired because the mistake is expensive. Video is
+ * billed by the second, and a planner that reads the field as a timecode
+ * returns 27 for the last shot of a 26 second reel instead of 7. That is four
+ * times the clip and four times the bill, and nothing downstream would have
+ * questioned it.
+ */
+export function normaliseShots(shots: readonly ShotSpec[]): ShotSpec[] {
+  return shots.map((shot, index) => {
+    const cut = Math.max(0, shot.endSeconds - shot.startSeconds);
+    const ceiling = cut + MAX_TAIL_SECONDS;
+    const asked = shot.generateSeconds;
+    const usable = Number.isFinite(asked) && asked >= cut && asked <= ceiling;
+
+    return {
+      ...shot,
+      generateSeconds: usable ? asked : Math.round(cut + 1),
+      continuityFrom: index === 0 ? null : (shots[index - 1]?.id ?? null),
+    };
+  });
+}
 
 export async function buildPlan(
   model: string,
@@ -97,7 +168,7 @@ ${JSON.stringify(brief, null, 2)}
 THE SCRIPT:
 ${JSON.stringify(script, null, 2)}
 
-Build the production plan. Use 9:16. Generate each shot one to two seconds longer than its cut, so there is tail to trim.`;
+Build the production plan. Use 9:16. Set generateSeconds to the length of the cut, that is endSeconds minus startSeconds, plus one or two seconds of tail to trim. It is a duration in seconds, not a timecode.`;
 
   const response = await fetch(ENDPOINT, {
     method: 'POST',
@@ -144,12 +215,7 @@ Build the production plan. Use 9:16. Generate each shot one to two seconds longe
     throw new OpenRouterError(502, 'The planner returned a reply that was not valid JSON.');
   }
 
-  // The model is not asked for `continuityFrom`: it is structural, not creative,
-  // so it is derived here and cannot come back dangling.
-  const shots = parsed.shots.map((shot, index) => ({
-    ...shot,
-    continuityFrom: index === 0 ? null : (parsed.shots[index - 1]?.id ?? null),
-  }));
+  const shots = normaliseShots(parsed.shots);
 
   const cost = Number(((payload as { usage?: { cost?: unknown } }).usage ?? {}).cost ?? 0);
 
