@@ -34,7 +34,7 @@ The Chat Completions API takes a `video_url` content part. The Responses API cal
 ```
 
 Supported container formats are `video/mp4`, `video/mpeg`, `video/mov` and `video/webm`. A remote URL
-works too, but this application sends base64. An Instagram media URL is signed and expires, so handing
+works too, but this application sends base64. A media URL is often signed and expires, so handing
 the link to a third party is unreliable.
 
 ## Four things that are not in the documentation

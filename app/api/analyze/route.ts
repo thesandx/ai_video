@@ -9,7 +9,6 @@ import {
   acceptUploadedVideo,
   fetchDirectVideo,
   type FetchedVideo,
-  fetchInstagramReel,
   ReelFetchError,
 } from '@/services/reel-fetcher';
 
@@ -26,7 +25,6 @@ export const maxDuration = 300;
 
 /** Maps an expected failure to the status that describes it. */
 const REASON_STATUS: Record<string, number> = {
-  'login-required': 424,
   'not-found': 404,
   'too-large': 413,
   'not-a-video': 415,
@@ -87,10 +85,7 @@ async function readRequest(
     return { ok: false, response: fail(parsed.reason, 400) };
   }
 
-  const video =
-    parsed.kind === 'instagram'
-      ? await fetchInstagramReel(parsed.shortcode, parsed.url)
-      : await fetchDirectVideo(parsed.url);
+  const video = await fetchDirectVideo(parsed.url);
 
   const model = (body as { model?: unknown }).model;
   const angle = (body as { angle?: unknown }).angle;

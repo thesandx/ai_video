@@ -78,8 +78,8 @@ export function ReelAnalyzer() {
           <TextInput
             ref={urlRef}
             label="Reel link"
-            hint="Paste a public Instagram reel link, or a direct link to an MP4 file."
-            placeholder="https://www.instagram.com/reel/..."
+            hint="Paste a direct link to an MP4 file."
+            placeholder="https://example.com/reel.mp4"
             value={url}
             inputMode="url"
             autoComplete="off"

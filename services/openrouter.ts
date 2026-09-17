@@ -10,7 +10,7 @@ import { logger } from '@/lib/logger';
  *   - A video is a `video_url` content part on the Chat Completions API. The
  *     Responses API calls the same thing `input_video`; this client uses the
  *     former. A base64 `data:video/mp4;base64,...` URL works and is what the
- *     app sends, because an Instagram media URL is signed and short-lived, so
+ *     app sends, because a media URL is often signed and short-lived, so
  *     handing the raw link to a third party is unreliable.
  *   - Confirmation that the model really watched the video is
  *     `usage.prompt_tokens_details.video_tokens`. A non-zero count means the

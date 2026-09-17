@@ -1,39 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractShortcode, formatTimecode, parseReelUrl } from '@/lib/reel-url';
-
-describe('extractShortcode', () => {
-  it('reads a plain reel path', () => {
-    expect(extractShortcode('/reel/Abc12XyZ/')).toBe('Abc12XyZ');
-  });
-
-  it('reads the profile-prefixed form', () => {
-    expect(extractShortcode('/somecreator/reel/Abc12XyZ/')).toBe('Abc12XyZ');
-  });
-
-  it.each(['/reels/Abc12XyZ/', '/p/Abc12XyZ/', '/tv/Abc12XyZ/'])('reads %s', (path) => {
-    expect(extractShortcode(path)).toBe('Abc12XyZ');
-  });
-
-  it('returns null when there is no media segment', () => {
-    expect(extractShortcode('/somecreator/')).toBeNull();
-  });
-
-  it('rejects a shortcode with illegal characters', () => {
-    expect(extractShortcode('/reel/not a code/')).toBeNull();
-  });
-});
+import { formatTimecode, parseReelUrl } from '@/lib/reel-url';
 
 describe('parseReelUrl', () => {
-  it('canonicalises any Instagram reel URL to the same shape', () => {
-    const parsed = parseReelUrl('https://instagram.com/reels/Abc12XyZ/?igsh=tracking');
-    expect(parsed).toEqual({
-      kind: 'instagram',
-      url: 'https://www.instagram.com/reel/Abc12XyZ/',
-      shortcode: 'Abc12XyZ',
-    });
-  });
-
   it('accepts a direct media URL as a first-class source', () => {
     const parsed = parseReelUrl('https://cdn.example.com/video.mp4');
     expect(parsed.kind).toBe('direct-url');
@@ -52,9 +21,22 @@ describe('parseReelUrl', () => {
     expect(parseReelUrl('ftp://example.com/video.mp4').kind).toBe('invalid');
   });
 
-  it('rejects an Instagram profile link that carries no reel', () => {
-    const parsed = parseReelUrl('https://www.instagram.com/somecreator/');
+  it.each([
+    'https://www.instagram.com/reel/Abc12XyZ/',
+    'https://instagram.com/reels/Abc12XyZ/?igsh=tracking',
+    'https://www.instagram.com/somecreator/',
+    'https://instagr.am/p/Abc12XyZ/',
+  ])('rejects %s, because Instagram refuses logged-out downloads', (link) => {
+    const parsed = parseReelUrl(link);
     expect(parsed.kind).toBe('invalid');
+  });
+
+  it('tells the reader to upload the file when they paste an Instagram link', () => {
+    const parsed = parseReelUrl('https://www.instagram.com/reel/Abc12XyZ/');
+    expect(parsed).toEqual({
+      kind: 'invalid',
+      reason: expect.stringContaining('upload the file'),
+    });
   });
 });
 

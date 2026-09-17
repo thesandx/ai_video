@@ -1,23 +1,22 @@
 /**
  * Parsing and validation for the URL a reader pastes in.
  *
- * Pure: no network, no environment. The resolver in `services/` decides how to
+ * Pure: no network, no environment. The fetcher in `services/` decides how to
  * fetch; this file only decides what the reader gave us.
  */
 
-/** Instagram shortcodes are base64url-ish and at least 5 characters. */
-const SHORTCODE = /^[A-Za-z0-9_-]{5,32}$/;
-
-/** Host suffixes Instagram serves reels from. */
+/**
+ * Host suffixes Instagram serves reels from.
+ *
+ * Kept only to reject them with a message that helps. Instagram refuses
+ * logged-out downloads and the app no longer tries: a link pasted from the app
+ * would otherwise be fetched as a media URL and fail as "not a video", which
+ * tells the reader nothing about what to do next.
+ */
 const INSTAGRAM_HOSTS = ['instagram.com', 'instagr.am', 'ddinstagram.com'];
 
-/** Path segments that precede a shortcode on a reel or post URL. */
-const MEDIA_SEGMENTS = new Set(['reel', 'reels', 'p', 'tv']);
-
 export type ParsedReelUrl =
-  | { kind: 'instagram'; url: string; shortcode: string }
-  | { kind: 'direct-url'; url: string }
-  | { kind: 'invalid'; reason: string };
+  { kind: 'direct-url'; url: string } | { kind: 'invalid'; reason: string };
 
 function isInstagramHost(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/^www\./, '');
@@ -25,31 +24,11 @@ function isInstagramHost(hostname: string): boolean {
 }
 
 /**
- * Pulls the shortcode out of any Instagram reel or post URL shape.
- *
- * Handles `/reel/<code>`, `/reels/<code>`, `/p/<code>`, `/tv/<code>` and the
- * profile-prefixed `/<user>/reel/<code>` form, with or without a trailing
- * slash and with any tracking query attached.
- */
-export function extractShortcode(pathname: string): string | null {
-  const segments = pathname.split('/').filter((segment) => segment !== '');
-  for (let index = 0; index < segments.length - 1; index += 1) {
-    const segment = segments[index];
-    const next = segments[index + 1];
-    if (segment !== undefined && next !== undefined && MEDIA_SEGMENTS.has(segment.toLowerCase())) {
-      return SHORTCODE.test(next) ? next : null;
-    }
-  }
-  return null;
-}
-
-/**
  * Classifies the reader's input.
  *
- * A direct media URL is accepted as a first-class source, not a consolation
- * prize: Instagram refuses logged-out downloads, so pasting a media URL (or
- * uploading a file) is the path that always works. See
- * `docs/adr/0003-resolve-reels-through-a-pluggable-strategy.md`.
+ * The only link this accepts is a direct media URL. Uploading a file is the
+ * other way in, and the two are the whole set. See
+ * `docs/adr/0008-drop-the-instagram-resolver.md`.
  */
 export function parseReelUrl(input: string): ParsedReelUrl {
   const trimmed = input.trim();
@@ -69,17 +48,10 @@ export function parseReelUrl(input: string): ParsedReelUrl {
   }
 
   if (isInstagramHost(parsed.hostname)) {
-    const shortcode = extractShortcode(parsed.pathname);
-    if (shortcode === null) {
-      return {
-        kind: 'invalid',
-        reason: 'That Instagram link has no reel in it. Copy the link from the reel itself.',
-      };
-    }
     return {
-      kind: 'instagram',
-      url: `https://www.instagram.com/reel/${shortcode}/`,
-      shortcode,
+      kind: 'invalid',
+      reason:
+        'Instagram links are not supported. Instagram refuses downloads to anyone not logged in. Save the reel, then upload the file.',
     };
   }
 

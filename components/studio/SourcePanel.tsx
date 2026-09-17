@@ -16,10 +16,10 @@ export interface SourcePanelProps {
 /**
  * Getting the reel in, by link or by file.
  *
- * Both routes are offered together rather than one being a fallback, because
- * Instagram refuses logged-out downloads: without a session cookie the link
- * route cannot work at all, and an operator who hits that wall needs the upload
- * in front of them, not buried in an error.
+ * Uploading is the route that always works, so it sits beside the link rather
+ * than behind it. The link accepts a direct media URL only. Downloading from
+ * Instagram was tried and removed: see
+ * `docs/adr/0008-drop-the-instagram-resolver.md`.
  */
 export function SourcePanel({ busy, onAnalyse }: SourcePanelProps) {
   const [url, setUrl] = useState('');
@@ -47,9 +47,9 @@ export function SourcePanel({ busy, onAnalyse }: SourcePanelProps) {
       <Card surface="white">
         <div className="flex flex-col gap-5">
           <TextInput
-            label="Reel link"
-            hint="A public Instagram reel, or a direct link to an MP4."
-            placeholder="https://www.instagram.com/reel/..."
+            label="Video link"
+            hint="A direct link to an MP4 file. Not a page that plays one."
+            placeholder="https://example.com/reel.mp4"
             value={url}
             inputMode="url"
             autoComplete="off"
@@ -116,10 +116,10 @@ export function SourcePanel({ busy, onAnalyse }: SourcePanelProps) {
         </div>
       </Card>
 
-      <Callout title="If the link route fails">
-        Instagram does not serve reels to logged-out clients. Without an INSTAGRAM_SESSION_COOKIE
-        the app cannot download one for you, and it will say so. Saving the reel yourself and
-        uploading the file needs no credentials and always works.
+      <Callout title="Where the video comes from">
+        The link must point at the MP4 itself, not at a page that plays it. Social platforms do not
+        serve their videos to a logged-out client, so for a reel from one of them, save the file
+        first and upload it here.
       </Callout>
     </div>
   );

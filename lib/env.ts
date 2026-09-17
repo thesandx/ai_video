@@ -143,17 +143,6 @@ export const env = {
   openRouterModel: optional(process.env.OPENROUTER_MODEL, 'google/gemini-3.5-flash'),
 
   /**
-   * Instagram `sessionid` cookie, optional.
-   *
-   * Instagram refuses logged-out reel downloads: the page renders a JS shell
-   * with no `og:video`, GraphQL answers 403, and the media API redirects. With
-   * this cookie the resolver can fetch a reel automatically; without it the
-   * reader supplies the file directly. Keep it in Secret Manager, never in the
-   * repository, and never behind `NEXT_PUBLIC_`.
-   */
-  instagramSessionCookie: firstOf(process.env.INSTAGRAM_SESSION_COOKIE),
-
-  /**
    * Ceiling on the video the app will hold in memory and base64-encode.
    * Base64 inflates by about a third, and the encoded string goes into a JSON
    * request body, so this bounds request size as well as memory.

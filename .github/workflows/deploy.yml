@@ -172,11 +172,11 @@ jobs:
           # alongside the two below rather than passed here. It is required when
           # RUN_TRANSPORT is neon: the container refuses to start without it.
           #
-          # OPENROUTER_API_KEY and INSTAGRAM_SESSION_COOKIE are credentials, so
-          # they are mounted from Secret Manager at runtime, never passed here
-          # and never passed as a build arg. cloud/environment-variables.md has
-          # the gcloud commands that create them and grant the runtime service
-          # account access. Add them to `--set-secrets` below once they exist.
+          # OPENROUTER_API_KEY is a credential, so it is mounted from Secret
+          # Manager at runtime, never passed here and never passed as a build
+          # arg. cloud/environment-variables.md has the gcloud commands that
+          # create it and grant the runtime service account access. Add it to
+          # `--set-secrets` below once it exists.
           flags: >-
             --allow-unauthenticated
             --port=8080

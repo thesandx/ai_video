@@ -56,10 +56,10 @@ The reading of the source and the script written from it stay deliberately separ
 in the reply schema and in the types. See
 [ADR-0004](./docs/adr/0004-split-reading-the-source-from-writing-the-script.md).
 
-**Instagram refuses logged-out downloads.** This was verified against the live site, not assumed. So
-reel resolution is a strategy list, and the last strategy, a direct video URL or an uploaded file,
-needs no credential and always works. See
-[ADR-0003](./docs/adr/0003-resolve-reels-through-a-pluggable-strategy.md).
+**A video enters only two ways: a direct media URL, or an upload.** Neither needs a credential. The
+Instagram resolver was removed after it broke on a rotated query id. Do not add a downloader for a
+site that gates logged-out clients: it needs a credential and it breaks on somebody else's schedule.
+See [ADR-0008](./docs/adr/0008-drop-the-instagram-resolver.md).
 
 The user interface follows the **Playroom Kawaii** design system, ported from the Playroom games
 repository. [`.claude/skills/kawaii-ui/SKILL.md`](./.claude/skills/kawaii-ui/SKILL.md) is the rulebook

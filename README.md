@@ -31,11 +31,11 @@ The split is enforced in the prompt, in the reply schema and in the types. See
 
 ### Two things worth knowing before you start
 
-**Instagram refuses logged-out downloads.** This was verified against the live site: the reel page
-returns a JavaScript shell with no `og:video`, GraphQL answers `403`, and the media API redirects.
-`yt-dlp` fails the same way. So the app takes a direct MP4 link or an uploaded file as a first-class
-input, which needs no credential. An optional `INSTAGRAM_SESSION_COOKIE` adds automatic download. See
-[ADR-0003](./docs/adr/0003-resolve-reels-through-a-pluggable-strategy.md).
+**The video comes in as a direct MP4 link or an upload.** Both need no credential. Downloading from
+Instagram was built, then removed: it needs a session cookie, which is a full account credential, and
+it depends on a persisted query id that Instagram rotates without notice. It broke, and it would keep
+breaking. Save the reel, then upload the file. See
+[ADR-0008](./docs/adr/0008-drop-the-instagram-resolver.md).
 
 **Not every model can see a video.** 79 of 445 models on OpenRouter declare video input. The reply
 reports `video_tokens`, which is the only reliable proof the frames were read.

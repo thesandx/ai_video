@@ -39,7 +39,7 @@ export function DeliverPanel({
         </h2>
         <p className="mb-4 max-w-[65ch] text-sm text-white">
           Every clip is silent. Cut them at the timecodes in the plan, export 9:16, then add your
-          music in the Instagram app at upload.
+          music in the app you post from.
         </p>
         <dl className="grid grid-cols-1 gap-3 text-sm text-white sm:grid-cols-3">
           <div>

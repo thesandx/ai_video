@@ -251,10 +251,9 @@ Never put these in `env_vars`, in a build argument, or in the repository. A
 build argument is visible in `docker history`, and `NEXT_PUBLIC_` sends the
 value to every browser.
 
-| Secret                     | Required | Purpose                                    |
-| -------------------------- | -------- | ------------------------------------------ |
-| `OPENROUTER_API_KEY`       | Yes      | Authenticates the call to OpenRouter       |
-| `INSTAGRAM_SESSION_COOKIE` | No       | Lets the app download a reel automatically |
+| Secret               | Required | Purpose                              |
+| -------------------- | -------- | ------------------------------------ |
+| `OPENROUTER_API_KEY` | Yes      | Authenticates the call to OpenRouter |
 
 Create the OpenRouter key:
 
@@ -278,23 +277,19 @@ gcloud run services update "$SERVICE_NAME" --region "$GCP_REGION" \
   --set-secrets=OPENROUTER_API_KEY=OPENROUTER_API_KEY:latest
 ```
 
-Repeat all three steps for `INSTAGRAM_SESSION_COOKIE` if you want automatic
-downloads. Add both to the `--set-secrets` flag in `.github/workflows/deploy.yml`
-once they exist, so a later deploy does not drop them.
+Add it to the `--set-secrets` flag in `.github/workflows/deploy.yml` once it
+exists, so a later deploy does not drop it.
 
-### Why the Instagram cookie is optional
+### Why there is no download credential
 
-Instagram refuses logged-out reel downloads. This was verified against the live
-site. The reel page returns a JavaScript shell with no `og:video` tag. The
-GraphQL endpoint answers `403`. The media API redirects to a login page. The
-`yt-dlp` extractor fails the same way and says to supply cookies.
+The application holds no credential for any video site. A reader supplies a
+direct media URL, or uploads a file.
 
-So the application accepts a direct video URL as a first-class input. That path
-needs no credential and does not expire. The cookie only adds convenience.
-
-Treat the cookie as a credential. It authenticates as the account that created
-it. Use a throwaway account. Expect it to expire, and expect the app to report
-`424` with a plain message when it does.
+An Instagram session cookie was supported once. It was removed. A session cookie
+authenticates as the account that made it, with no password and no second
+factor, and the download also depended on a persisted query id that Instagram
+rotates without notice. See
+[ADR-0008](../docs/adr/0008-drop-the-instagram-resolver.md).
 
 ---
 

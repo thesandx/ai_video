@@ -1,6 +1,6 @@
 # ADR-0003: Resolve reels through a pluggable strategy
 
-- **Status:** Accepted
+- **Status:** Superseded in part by [ADR-0008](./0008-drop-the-instagram-resolver.md)
 - **Date:** 2026-09-15
 - **Deciders:** Application engineering
 

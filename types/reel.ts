@@ -12,14 +12,12 @@
  */
 
 /** How the video file reached us. */
-export type ReelSourceKind = 'instagram' | 'direct-url';
+export type ReelSourceKind = 'direct-url';
 
 export interface ReelSource {
   kind: ReelSourceKind;
-  /** The canonical reel URL, or the direct media URL. */
+  /** The direct media URL, or the name of the uploaded file. */
   url: string;
-  /** Instagram shortcode, when the source is a reel. */
-  shortcode?: string;
   /** Bytes of the downloaded file. */
   sizeBytes: number;
   contentType: string;
